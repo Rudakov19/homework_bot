@@ -41,12 +41,12 @@ logger.addHandler(fileHandler)
 
 
 def check_tokens():
-    '''Проверяет доступность переменных окружения.'''
+    """Проверяет доступность переменных окружения."""
     return all([PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID])
 
 
 def send_message(bot, message):
-    '''Отправляет сообщение в Telegram чат.'''
+    """Отправляет сообщение в Telegram чат."""
     try:
         logger.debug("Начало отправки сообщения в Telegram чат")
         bot.send_message(TELEGRAM_CHAT_ID, message)
@@ -59,7 +59,7 @@ def send_message(bot, message):
 
 
 def get_api_answer(timestamp):
-    '''Делает запрос к единственному эндпоинту API-сервиса.'''
+    """Делает запрос к единственному эндпоинту API-сервиса."""
     params = {'from_date': timestamp}
     requests_params = {
         'url': ENDPOINT,
@@ -85,7 +85,7 @@ def get_api_answer(timestamp):
 
 
 def check_response(response):
-    '''Проверяет ответ API на соответствие.'''
+    """Проверяет ответ API на соответствие."""
     logger.info("Проверка ответа API на корректность")
     if not isinstance(response, dict):
         message = (f"Ответ API получен в виде {type(response)}, "
@@ -105,7 +105,7 @@ def check_response(response):
 
 
 def parse_status(homework):
-    '''Извлекает информацию о статусе домашней работы.'''
+    """Извлекает информацию о статусе домашней работы."""
     logger.info("Извлечение из конкретной домашней работы статуса этой работы")
     if "homework_name" not in homework:
         message = "В словаре homework не найден ключ homework_name"
