@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 import telegram
 import requests
 
-from exceptions import (ExceptionGetAPYError,
+from exceptions import (ErrorBase, ExceptionGetAPYError,
                         ExceptionEmptyAnswer, ExceptionStatusError,
                         ExceptionEnvironmentVariables)
 
@@ -157,8 +157,8 @@ def main():
 
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     timestamp = int(0)
+    previous_message_error = ''
     old_status = None
-    old_message = None
 
     while True:
         try:
@@ -168,22 +168,21 @@ def main():
                 new_status = parse_status(homework[0])
             else:
                 new_status = 'За данный период времени нет сведений.'
+            if old_status != new_status:
+                old_status = new_status
+                send_message(bot, old_status)
+            else:
+                logger.debug("В ответе API отсутсвуют новые статусы")
         except Exception as error:
-            new_message = f'Сбой в работе программы: {error}'
-            logger.error(new_message)
+            message_error = f'Сбой в работе программы: {error}'
+            logger.error(message_error)
+            if not issubclass(error.__class__, ErrorBase):
+                if message_error != previous_message_error:
+                    send_message(bot, message_error)
+                    previous_message_error = message_error
 
-            if old_message != new_message:
-                old_message = new_message
-                send_message(bot, old_message)
+        finally:
             time.sleep(RETRY_PERIOD)
-
-        if old_status != new_status:
-            old_status = new_status
-            send_message(bot, old_status)
-        else:
-            logger.debug("В ответе API отсутсвуют новые статусы")
-
-        time.sleep(RETRY_PERIOD)
 
 
 if __name__ == '__main__':

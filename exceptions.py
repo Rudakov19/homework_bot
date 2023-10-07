@@ -1,4 +1,9 @@
-class ExceptionSendMessageError(Exception):
+class ErrorBase(Exception):
+    """Базовый класс для исключений, которые не нужно отправлять в Telegram."""
+    pass
+
+
+class ExceptionSendMessageError(ErrorBase):
     """Класс исключения при сбое отправки сообщения."""
     pass
 
