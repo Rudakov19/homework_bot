@@ -1,23 +1,23 @@
-class Error(Exception):
-    """Базовый класс для исключений, которые не нужно отправлять в Telegram."""
-
-
-class ExceptionSendMessageError(Error):
+class ExceptionSendMessageError(Exception):
     """Класс исключения при сбое отправки сообщения."""
-
-    def __init__(self, message):
-        self.message = message
+    pass
 
 
 class ExceptionStatusError(Exception):
     """Класс исключения при не корректном статусе ответа."""
-
-    def __init__(self, message):
-        self.message = message
+    pass
 
 
 class ExceptionGetAPYError(Exception):
     """Класс исключения при ошибке запроса к API."""
+    pass
 
-    def __init__(self, message):
-        self.message = message
+
+class ExceptionEmptyAnswer(Exception):
+    """Пустой ответ API"""
+    pass
+
+
+class ExceptionEnvironmentVariables(Exception):
+    """Ошибка в переменных окружения"""
+    pass

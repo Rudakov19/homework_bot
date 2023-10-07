@@ -2,14 +2,15 @@ import logging
 import os
 import time
 import sys
-import requests
-
 from http import HTTPStatus
+
 from dotenv import load_dotenv
 import telegram
+import requests
 
-from exceptions import (Error, ExceptionGetAPYError, ExceptionSendMessageError,
-                        ExceptionStatusError)
+from exceptions import (ExceptionGetAPYError,
+                        ExceptionEmptyAnswer, ExceptionStatusError,
+                        ExceptionEnvironmentVariables)
 
 load_dotenv()
 
@@ -32,7 +33,10 @@ HOMEWORK_VERDICTS = {
 logger = logging.getLogger(__name__)
 fileHandler = logging.FileHandler("logfile.log", encoding='utf-8')
 streamHandler = logging.StreamHandler(sys.stdout)
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+formatter = logging.Formatter(
+    '%(asctime)s - %(module)s - %(lineno)d - '
+    '%(funcName)s - %(levelname)s - %(message)s'
+)
 logger.setLevel(logging.DEBUG)
 streamHandler.setFormatter(formatter)
 fileHandler.setFormatter(formatter)
@@ -50,12 +54,26 @@ def send_message(bot, message):
     try:
         logger.debug("Начало отправки сообщения в Telegram чат")
         bot.send_message(TELEGRAM_CHAT_ID, message)
-    except Exception as error:
-        raise ExceptionSendMessageError(
-            f"Cбой при отправке сообщения '{message}' в Telegram. "
-            f"Error: {error}")
-    else:
-        logger.debug(f"В Telegram отправлено сообщение '{message}'")
+    except telegram.error.Unauthorized:
+        logger.error(
+            'Сбой при отправке сообщения в чат Telegram: '
+            'у бота недостаточно прав для отправки сообщения в заданный чат.'
+        )
+        raise
+    except telegram.error.InvalidToken as error:
+        logger.error(
+            'Сбой при отправке сообщения в чат Telegram: '
+            f'ошибка в токене Telegram-бота - "{error}".'
+        )
+        raise
+    except telegram.error.NetworkError as error:
+        logger.error(
+            'Сбой при отправке сообщения в чат Telegram: '
+            f'ошибка сетевого подключения - "{error}".'
+        )
+        raise
+
+    logger.debug(f"В Telegram отправлено сообщение '{message}'")
 
 
 def get_api_answer(timestamp):
@@ -67,8 +85,8 @@ def get_api_answer(timestamp):
         'params': params
     }
     try:
-        logger.info(f"Запрос к эндпоинту '{ENDPOINT}' API-сервиса c "
-                    f"параметрами {requests_params}")
+        logger.info("Запрос к эндпоинту '{url}' API-сервиса "
+                    "c параметрами {params}".format(**requests_params))
         response = requests.get(**requests_params)
         if response.status_code != HTTPStatus.OK:
             message = (f"Сбой в работе программы: Эндпоинт {ENDPOINT} c "
@@ -78,9 +96,10 @@ def get_api_answer(timestamp):
             raise ExceptionStatusError(message)
     except Exception as error:
         raise ExceptionGetAPYError(
-            f"Cбой при запросе к энпоинту '{ENDPOINT}' API-сервиса с "
-            f"параметрами {requests_params}."
-            f"Error: {error}")
+            "Cбой при запросе к энпоинту '{url}' API-сервиса с "
+            "параметрами {params}.".format(**requests_params),
+            f"Error: {error}"
+        )
     return response.json()
 
 
@@ -95,13 +114,13 @@ def check_response(response):
     for key in keys:
         if key not in response:
             message = f"В ответе API нет ключа {key}"
-            raise KeyError(message)
-    homework = response.get('homeworks')
-    if not isinstance(homework, list):
-        message = (f"API вернул {type(homework)} под ключом homeworks, "
+            raise ExceptionEmptyAnswer("Пустой ответ API")
+    homeworks = response.get('homeworks')
+    if not isinstance(homeworks, list):
+        message = (f"API вернул {type(homeworks)} под ключом homeworks, "
                    "а должен быть список")
         raise TypeError(message)
-    return homework
+    return homeworks
 
 
 def parse_status(homework):
@@ -134,31 +153,37 @@ def main():
     """
     if not check_tokens():
         logger.critical('Ошибка в переменных окружения')
-        raise ValueError('Ошибка в переменных окружения')
+        raise ExceptionEnvironmentVariables('Ошибка в переменных окружения')
 
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
-    timestamp = int(time.time())
-    previous_message_error = ''
+    timestamp = int(0)
+    old_status = None
+    old_message = None
 
     while True:
         try:
             response = get_api_answer(timestamp)
             homework = check_response(response)
-            if len(homework) > 0:
-                message = parse_status(homework[0])
-                send_message(bot, message)
+            if homework:
+                new_status = parse_status(homework[0])
             else:
-                logger.debug("В ответе API отсутсвуют новые статусы")
-            timestamp = int(time.time())
+                new_status = 'За данный период времени нет сведений.'
         except Exception as error:
-            message_error = f'Сбой в работе программы: {error}'
-            logger.error(message_error)
-            if not issubclass(error.__class__, Error):
-                if message_error != previous_message_error:
-                    send_message(bot, message_error)
-                    previous_message_error = message_error
-        finally:
+            new_message = f'Сбой в работе программы: {error}'
+            logger.error(new_message)
+
+            if old_message != new_message:
+                old_message = new_message
+                send_message(bot, old_message)
             time.sleep(RETRY_PERIOD)
+
+        if old_status != new_status:
+            old_status = new_status
+            send_message(bot, old_status)
+        else:
+            logger.debug("В ответе API отсутсвуют новые статусы")
+
+        time.sleep(RETRY_PERIOD)
 
 
 if __name__ == '__main__':
