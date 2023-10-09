@@ -8,7 +8,7 @@ import telegram
 import requests
 from dotenv import load_dotenv
 
-from exceptions import (NotSendTelegram, ExceptionGetAPYError,
+from exceptions import (NotSendTelegram,
                         ExceptionEmptyAnswer, ExceptionStatusError,
                         ExceptionEnvironmentVariables,
                         ExceptionSendMessageError)
@@ -92,12 +92,8 @@ def get_api_answer(timestamp):
                        f": {response.status_code}, reason: {response.reason}, "
                        f"text: {response.text}")
             raise ExceptionStatusError(message)
-    except requests.RequestException:
+    except requests.RequestException as error:
         raise ExceptionStatusError(
-            "Url недоступен"
-        )
-    except Exception as error:
-        raise ExceptionGetAPYError(
             "Cбой при запросе к энпоинту '{url}' API-сервиса с "
             "параметрами {params}.".format(**requests_params),
             f"Error: {error}"
@@ -164,7 +160,7 @@ def main():
     while True:
         try:
             response = get_api_answer(timestamp)
-            timestamp = response.get('current_date')
+            timestamp = response.get('current_date', 0)
             homework = check_response(response)
             if homework:
                 new_status = parse_status(homework[0])

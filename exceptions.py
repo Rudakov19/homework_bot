@@ -16,12 +16,6 @@ class ExceptionStatusError(NotSendTelegram):
     pass
 
 
-class ExceptionGetAPYError(NotSendTelegram):
-    """Класс исключения при ошибке запроса к API."""
-
-    pass
-
-
 class ExceptionEmptyAnswer(NotSendTelegram):
     """Пустой ответ API"""
 
