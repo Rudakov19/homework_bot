@@ -1,28 +1,34 @@
-class ErrorBase(Exception):
+class NotSendTelegram(Exception):
     """Базовый класс для исключений, которые не нужно отправлять в Telegram."""
+
     pass
 
 
-class ExceptionSendMessageError(ErrorBase):
+class ExceptionSendMessageError(NotSendTelegram):
     """Класс исключения при сбое отправки сообщения."""
+
     pass
 
 
-class ExceptionStatusError(Exception):
+class ExceptionStatusError(NotSendTelegram):
     """Класс исключения при не корректном статусе ответа."""
+
     pass
 
 
-class ExceptionGetAPYError(Exception):
+class ExceptionGetAPYError(NotSendTelegram):
     """Класс исключения при ошибке запроса к API."""
+
     pass
 
 
-class ExceptionEmptyAnswer(Exception):
+class ExceptionEmptyAnswer(NotSendTelegram):
     """Пустой ответ API"""
+
     pass
 
 
-class ExceptionEnvironmentVariables(Exception):
+class ExceptionEnvironmentVariables(NotSendTelegram):
     """Ошибка в переменных окружения"""
+
     pass

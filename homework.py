@@ -4,13 +4,14 @@ import time
 import sys
 from http import HTTPStatus
 
-from dotenv import load_dotenv
 import telegram
 import requests
+from dotenv import load_dotenv
 
-from exceptions import (ErrorBase, ExceptionGetAPYError,
+from exceptions import (NotSendTelegram, ExceptionGetAPYError,
                         ExceptionEmptyAnswer, ExceptionStatusError,
-                        ExceptionEnvironmentVariables)
+                        ExceptionEnvironmentVariables,
+                        ExceptionSendMessageError)
 
 load_dotenv()
 
@@ -46,38 +47,38 @@ logger.addHandler(fileHandler)
 
 def check_tokens():
     """Проверяет доступность переменных окружения."""
+
     return all([PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID])
 
 
 def send_message(bot, message):
     """Отправляет сообщение в Telegram чат."""
+
     try:
         logger.debug("Начало отправки сообщения в Telegram чат")
         bot.send_message(TELEGRAM_CHAT_ID, message)
     except telegram.error.Unauthorized:
-        logger.error(
+        raise ExceptionSendMessageError(
             'Сбой при отправке сообщения в чат Telegram: '
             'у бота недостаточно прав для отправки сообщения в заданный чат.'
         )
-        raise
     except telegram.error.InvalidToken as error:
-        logger.error(
+        raise ExceptionSendMessageError(
             'Сбой при отправке сообщения в чат Telegram: '
             f'ошибка в токене Telegram-бота - "{error}".'
         )
-        raise
     except telegram.error.NetworkError as error:
-        logger.error(
+        raise ExceptionSendMessageError(
             'Сбой при отправке сообщения в чат Telegram: '
             f'ошибка сетевого подключения - "{error}".'
         )
-        raise
 
     logger.debug(f"В Telegram отправлено сообщение '{message}'")
 
 
 def get_api_answer(timestamp):
     """Делает запрос к единственному эндпоинту API-сервиса."""
+
     params = {'from_date': timestamp}
     requests_params = {
         'url': ENDPOINT,
@@ -94,6 +95,10 @@ def get_api_answer(timestamp):
                        f": {response.status_code}, reason: {response.reason}, "
                        f"text: {response.text}")
             raise ExceptionStatusError(message)
+    except requests.RequestException:
+        raise ExceptionStatusError(
+            "Url недоступен"
+        )
     except Exception as error:
         raise ExceptionGetAPYError(
             "Cбой при запросе к энпоинту '{url}' API-сервиса с "
@@ -105,6 +110,7 @@ def get_api_answer(timestamp):
 
 def check_response(response):
     """Проверяет ответ API на соответствие."""
+
     logger.info("Проверка ответа API на корректность")
     if not isinstance(response, dict):
         message = (f"Ответ API получен в виде {type(response)}, "
@@ -125,6 +131,7 @@ def check_response(response):
 
 def parse_status(homework):
     """Извлекает информацию о статусе домашней работы."""
+
     logger.info("Извлечение из конкретной домашней работы статуса этой работы")
     if "homework_name" not in homework:
         message = "В словаре homework не найден ключ homework_name"
@@ -156,13 +163,13 @@ def main():
         raise ExceptionEnvironmentVariables('Ошибка в переменных окружения')
 
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
-    timestamp = int(0)
-    previous_message_error = ''
+    timestamp = 0
     old_status = None
 
     while True:
         try:
             response = get_api_answer(timestamp)
+            timestamp = response.get('current_date')
             homework = check_response(response)
             if homework:
                 new_status = parse_status(homework[0])
@@ -173,13 +180,16 @@ def main():
                 send_message(bot, old_status)
             else:
                 logger.debug("В ответе API отсутсвуют новые статусы")
+        except NotSendTelegram as error:
+            new_status = f'Сбой в работе программы: {error}'
+            logger.error(new_status)
         except Exception as error:
-            message_error = f'Сбой в работе программы: {error}'
-            logger.error(message_error)
-            if not issubclass(error.__class__, ErrorBase):
-                if message_error != previous_message_error:
-                    send_message(bot, message_error)
-                    previous_message_error = message_error
+            new_status = f'Сбой в работе программы: {error}'
+            logger.error(new_status)
+            if not issubclass(error.__class__, NotSendTelegram):
+                if new_status != old_status:
+                    send_message(bot, new_status)
+                    old_status = new_status
 
         finally:
             time.sleep(RETRY_PERIOD)
